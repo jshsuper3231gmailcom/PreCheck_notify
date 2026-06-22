@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    driver-class-name: Altibase.jdbc.driver.AltibaseDriver
+    url: jdbc:Altibase://192.168.0.1:20300/precheck
+    username: precheck
+    password: precheck
+
+precheck:
+  notify:
+    schedule-file-path: /home/precheck/cfg/PreCheck_NotifyLogs_Schedule.conf
+    target-file-path: /home/precheck/cfg/PreCheck_NotifyTarget_List.conf
+    sms:
+      # TODO: 실제 SMS 게이트웨이 host/port로 교체 (통보_TR연동정의서.md 6절 미확인 항목)
+      host: 127.0.0.1
+      port: 9000

@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: notify
+  profiles:
+    active: local
+
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: com.sks.precheck.notify.domain
+  configuration:
+    map-underscore-to-camel-case: true

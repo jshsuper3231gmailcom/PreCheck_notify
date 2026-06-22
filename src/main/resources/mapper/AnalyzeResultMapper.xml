@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+    AnalyzeResultMapper.xml
+    TB_ANALYZE_RESULT (분석서버 소유 테이블)에 대한 읽기 + NOTIFY_YN 갱신
+    통보_DB정의서.md 7-2/7-4절 쿼리 패턴
+-->
+<mapper namespace="com.sks.precheck.notify.mapper.AnalyzeResultMapper">
+
+    <!-- 분석결과가 존재하는 모든 SERVER_ID 목록 -->
+    <select id="selectDistinctServerIds" resultType="string">
+        SELECT DISTINCT SERVER_ID
+        FROM TB_ANALYZE_RESULT
+        ORDER BY SERVER_ID
+    </select>
+
+    <!-- 서버별, 구간(from exclusive ~ to inclusive)별 정상/경고/에러 건수 -->
+    <select id="countByLevelInWindow" resultType="com.sks.precheck.notify.domain.AnalyzeLevelCount">
+        SELECT ANALYZE_LEVEL AS analyzeLevel, COUNT(*) AS cnt
+        FROM TB_ANALYZE_RESULT
+        WHERE SERVER_ID = #{serverId}
+          AND ANALYZE_LEVEL IN ('정상', '경고', '에러')
+          AND ANALYZE_DATETIME &gt; #{from}
+          AND ANALYZE_DATETIME &lt;= #{to}
+        GROUP BY ANALYZE_LEVEL
+    </select>
+
+    <!-- 이번 집계 구간에 포함된 행(정상/경고/에러) 전부 통보완료 처리 -->
+    <update id="updateNotifyYn">
+        UPDATE TB_ANALYZE_RESULT
+        SET NOTIFY_YN  = 'Y',
+            NOTIFY_AT  = #{notifyAt},
+            UPDATED_AT = #{notifyAt}
+        WHERE SERVER_ID = #{serverId}
+          AND ANALYZE_LEVEL IN ('정상', '경고', '에러')
+          AND ANALYZE_DATETIME &gt; #{from}
+          AND ANALYZE_DATETIME &lt;= #{to}
+    </update>
+
+</mapper>

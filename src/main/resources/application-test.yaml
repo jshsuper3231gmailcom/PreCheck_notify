@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: dnwls098!@#
+    hikari:
+      initialization-fail-timeout: -1
+
+precheck:
+  notify:
+    schedule-file-path: C:\Users\20200161\Desktop\PreCheck_work\Precheck_project\Precheck_SKSCh1\precheck_collect\notify\schedule_sample\PreCheck_NotifyLogs_Schedule.conf
+    target-file-path: C:\Users\20200161\Desktop\PreCheck_work\Precheck_project\Precheck_SKSCh1\precheck_collect\notify\schedule_sample\PreCheck_NotifyTarget_List.conf
+    sms:
+      # TODO: 실제 SMS 게이트웨이 host/port로 교체 (통보_TR연동정의서.md 6절 미확인 항목)
+      host: 127.0.0.1
+      port: 9000

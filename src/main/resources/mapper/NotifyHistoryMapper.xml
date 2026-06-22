@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+    NotifyHistoryMapper.xml
+    TB_NOTIFY_HISTORY 테이블 읽기(워터마크 조회)/INSERT
+    통보_DB정의서.md 7-1/7-3절 쿼리 패턴
+-->
+<mapper namespace="com.sks.precheck.notify.mapper.NotifyHistoryMapper">
+
+    <!-- 이 서버의 마지막 성공/부분성공 집계가 어디까지였는지 조회 -->
+    <select id="findLastWatermark" resultType="java.time.LocalDateTime">
+        SELECT AGGREGATE_TO
+        FROM TB_NOTIFY_HISTORY
+        WHERE SERVER_ID = #{serverId}
+          AND NOTIFY_STATUS IN ('SUCCESS', 'PARTIAL')
+        ORDER BY NOTIFY_START_AT DESC
+        FETCH FIRST 1 ROWS ONLY
+    </select>
+
+    <!-- 서버 1건 처리 완료 직후 즉시 INSERT (crash-safe, 일괄 INSERT 아님 — 통보_TR연동정의서.md 5절) -->
+    <insert id="insert" parameterType="com.sks.precheck.notify.domain.NotifyHistory">
+        INSERT INTO TB_NOTIFY_HISTORY (
+            NOTIFY_HISTORY_ID,
+            SERVER_ID,
+            AGGREGATE_FROM,
+            AGGREGATE_TO,
+            NORMAL_COUNT,
+            WARNING_COUNT,
+            ERROR_COUNT,
+            RECV_TOTAL_COUNT,
+            RECV_SUCCESS_COUNT,
+            RECV_FAIL_COUNT,
+            NOTIFY_MESSAGE,
+            NOTIFY_STATUS,
+            FAIL_REASON,
+            NOTIFY_START_AT,
+            NOTIFY_END_AT,
+            NOTIFY_DATE,
+            CREATED_AT
+        ) VALUES (
+            #{notifyHistoryId},
+            #{serverId},
+            #{aggregateFrom},
+            #{aggregateTo},
+            #{normalCount},
+            #{warningCount},
+            #{errorCount},
+            #{recvTotalCount},
+            #{recvSuccessCount},
+            #{recvFailCount},
+            #{notifyMessage},
+            #{notifyStatus},
+            #{failReason},
+            #{notifyStartAt},
+            #{notifyEndAt},
+            #{notifyDate},
+            COALESCE(#{createdAt}, CURRENT_TIMESTAMP)
+        )
+    </insert>
+
+</mapper>
