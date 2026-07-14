@@ -52,5 +52,5 @@ gradlew.bat bootRun --args="--spring.profiles.active=prod"
 ## 스택 참고
 
 - Java 17, Spring Boot 4.0.7, MyBatis (XML 매퍼)
-- PostgreSQL (test) / Altibase (prod)
+- PostgreSQL (test/prod)
 - Lombok, Log4j2
