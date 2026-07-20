@@ -14,12 +14,14 @@ class SmsTrEncoderTest {
     private final SmsTrEncoder encoder = new SmsTrEncoder();
 
     @Test
-    void encodeBind_headerOnly_5bytes() {
+    void encodeBind_headerAndBody_35bytes() {
         byte[] tr = encoder.encodeBind();
 
-        assertThat(tr).hasSize(5);
+        assertThat(tr).hasSize(35);
         assertThat(field(tr, 0, 2)).isEqualTo("01");
-        assertThat(field(tr, 2, 5)).isEqualTo("000");
+        assertThat(field(tr, 2, 5)).isEqualTo("030");
+        assertThat(field(tr, 5, 25)).isEqualTo(padRight("SMS_TUJA01", 20));
+        assertThat(field(tr, 25, 35)).isEqualTo(padRight("2.0.0", 10));
     }
 
     @Test

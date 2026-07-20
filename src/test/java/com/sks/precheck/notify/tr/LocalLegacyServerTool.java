@@ -4,6 +4,7 @@ import com.sks.precheck.notify.common.constants.NotifyConstants;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -14,7 +15,8 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 
 /**
- * 로컬 가짜 레거시 SMS 게이트웨이 — bind(01)/submit(03) TR을 수신해 전부 로그에 남기기만 하는 수동 통합 테스트용 도구.
+ * 로컬 가짜 레거시 SMS 게이트웨이 — bind(01)/submit(03) TR을 수신해 로그에 남기고 SmsAckPacket(7바이트,
+ * result="00" 고정)을 응답으로 써주는 수동 통합 테스트용 도구.
  *
  * notify 서버가 실제로 보내는 바이트가 통보_TR연동정의서.md 규격과 일치하는지 눈으로 확인하기 위한 용도이며,
  * 운영 코드가 아니므로 메인 소스셋이 아닌 test 소스셋에 둔다(빌드 결과물에 포함되지 않음).
@@ -65,6 +67,7 @@ public final class LocalLegacyServerTool {
 
     private static void handleConnection(Socket client, PrintWriter logWriter) throws IOException {
         InputStream in = client.getInputStream();
+        OutputStream out = client.getOutputStream();
         byte[] header = new byte[NotifyConstants.HEADER_TOTAL_LEN];
 
         while (true) {
@@ -83,7 +86,16 @@ public final class LocalLegacyServerTool {
                     new String(header, NotifyConstants.HEADER_SMS_CODE_LEN, NotifyConstants.HEADER_BODY_LENGTH_LEN, EUC_KR).trim());
 
             if (NotifyConstants.HEADER_SMS_CODE_BIND.equals(smsCode)) {
-                log(logWriter, "[BIND] 수신 - sms_code=" + smsCode + ", body_length=" + bodyLength);
+                byte[] body = new byte[bodyLength];
+                int bodyRead = readFully(in, body);
+                if (bodyRead < bodyLength) {
+                    log(logWriter, "[오류] bind body 수신 중 연결 끊김 (" + bodyRead + "/" + bodyLength + "바이트)");
+                    return;
+                }
+                log(logWriter, "[BIND] 수신 - sms_code=" + smsCode + ", body_length=" + bodyLength
+                        + ", system_id=\"" + new String(body, 0, NotifyConstants.BIND_SYSTEM_ID_LEN, EUC_KR).trim() + "\""
+                        + ", version=\"" + new String(body, NotifyConstants.BIND_SYSTEM_ID_LEN, NotifyConstants.BIND_VERSION_LEN, EUC_KR).trim() + "\"");
+                writeAck(out, smsCode, logWriter);
                 continue;
             }
 
@@ -95,7 +107,16 @@ public final class LocalLegacyServerTool {
                 return;
             }
             logBody(body, logWriter);
+            writeAck(out, smsCode, logWriter);
         }
+    }
+
+    /** SmsAckPacket(7바이트: sms_code 에코 + body_length="002" + result="00") 응답. */
+    private static void writeAck(OutputStream out, String smsCode, PrintWriter logWriter) throws IOException {
+        String ackText = smsCode + "002" + "00";
+        out.write(ackText.getBytes(EUC_KR));
+        out.flush();
+        log(logWriter, "  -> ack 응답 - sms_code=" + smsCode + ", result=00");
     }
 
     private static void logBody(byte[] body, PrintWriter logWriter) {

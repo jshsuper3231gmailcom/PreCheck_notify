@@ -8,11 +8,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 
 /**
- * SMS TR(BISUB_HEADER + SMSSUBMIT_BODY) 바이트 인코더 — 통보_TR연동정의서.md 3~4절 참고
+ * SMS TR(BISUB_HEADER + SMSBIND_BODY/SMSSUBMIT_BODY) 바이트 인코더 — 통보_TR연동정의서.md 3~6절 참고
  *
- * bind(01)는 원본 규격 캡처에 바디 구조가 제시되지 않아(6절 미확인 항목),
- * 구현상 바디 없이 헤더(5바이트, body_length="000")만 전송한다.
+ * bind(01)는 헤더(5바이트) + SMSBIND_BODY(30바이트) = 35바이트(system_id 실제 폭은 8절 미확인 항목).
  * submit(03)은 헤더(5바이트) + SMSSUBMIT_BODY(353바이트) = 358바이트.
+ * 응답(SmsAckPacket) 읽기/검증은 SmsTrSocketClient가 담당한다(5절 참고).
  */
 public class SmsTrEncoder {
 
@@ -21,7 +21,16 @@ public class SmsTrEncoder {
             DateTimeFormatter.ofPattern(NotifyConstants.TR_REQ_DATE_FORMAT);
 
     public byte[] encodeBind() {
-        return encodeHeader(NotifyConstants.HEADER_SMS_CODE_BIND, 0);
+        byte[] body = encodeBindBody();
+        byte[] header = encodeHeader(NotifyConstants.HEADER_SMS_CODE_BIND, body.length);
+        return concat(header, body);
+    }
+
+    private byte[] encodeBindBody() {
+        ByteBuffer buf = ByteBuffer.allocate(NotifyConstants.BIND_BODY_TOTAL_LEN);
+        buf.put(fixedTextField(NotifyConstants.BIND_SYSTEM_ID_FIXED, NotifyConstants.BIND_SYSTEM_ID_LEN)); // 1 system_id
+        buf.put(fixedTextField(NotifyConstants.BIND_VERSION_FIXED, NotifyConstants.BIND_VERSION_LEN));     // 2 version
+        return buf.array();
     }
 
     public byte[] encodeSubmit(long seqNo, String recvPhn, String message, LocalDateTime reqDateTime) {
@@ -57,10 +66,10 @@ public class SmsTrEncoder {
         buf.put(blankField(NotifyConstants.BODY_CHE_DATE_LEN));                                               // 17 che_date
         buf.put(blankField(NotifyConstants.BODY_ACCNT_ADMIN_ID_LEN));                                         // 18 accnt_admin_id
         buf.put(blankField(NotifyConstants.BODY_ADMIN_ID_LEN));                                               // 19 admin_id
-        buf.put(blankField(NotifyConstants.BODY_SEND_PHN_LEN));                                               // 20 send_phn
-        buf.put(blankField(NotifyConstants.BODY_RECALL_PHN_LEN));                                             // 21 recall_phn
+        buf.put(fixedTextField(NotifyConstants.SENDER_INFO_FIXED, NotifyConstants.BODY_SEND_PHN_LEN));        // 20 send_phn
+        buf.put(fixedTextField(NotifyConstants.SENDER_INFO_FIXED, NotifyConstants.BODY_RECALL_PHN_LEN));      // 21 recall_phn
         buf.put(blankField(NotifyConstants.BODY_BLANK2_LEN));                                                 // 22 blank2
-        buf.put(blankField(NotifyConstants.BODY_FILLER_LEN));                                                 // 23 filler
+        buf.put(fixedTextField("SMS_TUJA03 00000000     ", NotifyConstants.BODY_FILLER_LEN));          // 23 filler
         buf.put(NotifyConstants.TR_END_MARKER);                                                               // 24 end
         return buf.array();
     }

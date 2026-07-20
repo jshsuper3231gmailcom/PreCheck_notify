@@ -75,8 +75,22 @@ public final class NotifyConstants {
     public static final String BODY_SMS_CODE_INDIVIDUAL = "02"; // 개별발송 — 통보 서버가 항상 사용하는 값
 
     // 통보 서버 고정 채움값 (환경 무관)
-    public static final String SENDER_INFO_FIXED = "130.2.4.12";
+    public static final String SENDER_INFO_FIXED = "0237738245";
     public static final String TERM_IP_FIXED = "130.2.4.12";
+
+    // SMSBIND_BODY 필드 (30바이트 = system_id 20 + version 10) — 통보_TR연동정의서.md 4절
+    public static final int BIND_SYSTEM_ID_LEN = 20;
+    public static final int BIND_VERSION_LEN = 10;
+    public static final int BIND_BODY_TOTAL_LEN = BIND_SYSTEM_ID_LEN + BIND_VERSION_LEN; // = 30
+    public static final int BIND_TR_TOTAL_LEN = HEADER_TOTAL_LEN + BIND_BODY_TOTAL_LEN; // = 35
+
+    public static final String BIND_SYSTEM_ID_FIXED = "SMS_TUJA01";
+    public static final String BIND_VERSION_FIXED = "2.0.0";
+
+    // SmsAckPacket (7바이트 = BISUB_HEADER 5 + result 2) — bind/submit 공통, 통보_TR연동정의서.md 5절
+    public static final int ACK_RESULT_LEN = 2;
+    public static final int ACK_TOTAL_LEN = HEADER_TOTAL_LEN + ACK_RESULT_LEN; // = 7
+    public static final String ACK_RESULT_SUCCESS = "00";
 
     private NotifyConstants() {
     }
