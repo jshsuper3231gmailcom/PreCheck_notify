@@ -55,7 +55,7 @@ class NotifyAggregationServiceTest {
     }
 
     @Test
-    void serverWithWarningOrError_isIncluded() {
+    void serverWithError_isIncluded() {
         LocalDateTime aggregateTo = LocalDateTime.of(2026, 6, 18, 9, 30, 1);
         when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01"));
         when(notifyHistoryMapper.findLastWatermark("srv01")).thenReturn(LocalDateTime.of(2026, 6, 18, 9, 0, 1));
@@ -88,6 +88,18 @@ class NotifyAggregationServiceTest {
     }
 
     @Test
+    void serverWithOnlyWarning_isExcluded() {
+        when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01"));
+        when(notifyHistoryMapper.findLastWatermark("srv01")).thenReturn(LocalDateTime.of(2026, 6, 18, 9, 0, 1));
+        when(analyzeResultMapper.countByLevelInWindow(eq("srv01"), any(), any()))
+                .thenReturn(List.of(level("정상", 3), level("경고", 5)));
+
+        List<ServerAggregateResult> results = service.aggregate(periodicSchedule(30), LocalDateTime.of(2026, 6, 18, 9, 30, 1));
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
     void noWatermark_periodicSchedule_defaultsToOneIntervalBack() {
         LocalDateTime aggregateTo = LocalDateTime.of(2026, 6, 18, 9, 30, 1);
         when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01"));
@@ -107,7 +119,7 @@ class NotifyAggregationServiceTest {
         when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01"));
         when(notifyHistoryMapper.findLastWatermark("srv01")).thenReturn(null);
         when(analyzeResultMapper.countByLevelInWindow(eq("srv01"), any(), any()))
-                .thenReturn(List.of(level("경고", 1)));
+                .thenReturn(List.of(level("에러", 1)));
 
         List<ServerAggregateResult> results = service.aggregate(batchSchedule(), aggregateTo);
 
@@ -129,6 +141,6 @@ class NotifyAggregationServiceTest {
 
         List<ServerAggregateResult> results = service.aggregate(periodicSchedule(30), aggregateTo);
 
-        assertThat(results).extracting(ServerAggregateResult::getServerId).containsExactly("srv02", "srv03");
+        assertThat(results).extracting(ServerAggregateResult::getServerId).containsExactly("srv03");
     }
 }

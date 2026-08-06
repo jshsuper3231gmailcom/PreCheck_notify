@@ -47,7 +47,7 @@ HTTP 포트 없음. JVM 프로세스로 기동하면 `NotifyScheduler`가 매 60
         │     TB_ANALYZE_RESULT의 SERVER_ID 목록 순회
         │     → 서버별 워터마크 조회 (TB_NOTIFY_HISTORY.AGGREGATE_TO, 없으면 기본값)
         │     → 정상/경고/에러 건수 집계
-        │     → 경고+에러=0인 서버는 제외
+        │     → 에러=0인 서버는 제외(경고만 있어도 제외)
         │     → 대상 없으면 여기서 종료 (TB_NOTIFY_HISTORY 행도 생성 안 함)
         │
         ├─② [NotifyTargetParser.parseTargetFile()] 수신대상(전화번호) 파일 읽기
@@ -74,7 +74,7 @@ HTTP 포트 없음. JVM 프로세스로 기동하면 `NotifyScheduler`가 매 60
 #### A. 정상 처리 (전 서버 SUCCESS)
 
 ```
-1. 대상 서버 N개 모두 경고/에러 1건 이상
+1. 대상 서버 N개 모두 에러 1건 이상
 2. 수신대상 파일에 전화번호 1건 이상
 3. connect 성공 → bind 성공
 4. 서버 1~N 순서대로 submitAll() 전원 성공
@@ -218,7 +218,7 @@ notify/
 
 | 함수명 | 파라미터 | 반환값 | 설명 |
 |--------|----------|--------|------|
-| `aggregate(schedule, aggregateTo)` | `NotifyScheduleVo`, `LocalDateTime` | `List<ServerAggregateResult>` | 서버별 워터마크 조회 → 레벨별 카운트 집계 → 경고+에러=0 제외 → 통보 대상 목록 생성 |
+| `aggregate(schedule, aggregateTo)` | `NotifyScheduleVo`, `LocalDateTime` | `List<ServerAggregateResult>` | 서버별 워터마크 조회 → 레벨별 카운트 집계 → 에러=0 제외 → 통보 대상 목록 생성 |
 | `defaultAggregateFrom(schedule, aggregateTo)` | schedule, aggregateTo | `LocalDateTime` (private) | 워터마크 없는 신규 서버 기본값: 주기=`aggregateTo - 통보간격`, 배치=당일 00:00:00 |
 | `buildMessage(...)` | serverId, normal/warning/error count, from, to | `String` (private) | `"[서버명] 정상N 경고N 에러N (HH:mm~HH:mm)"` 형식 메시지 생성 |
 

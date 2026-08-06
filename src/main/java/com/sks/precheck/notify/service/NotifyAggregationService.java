@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  * 워터마크가 없는 신규 서버는 AGGREGATE_FROM 기본값을 사용한다:
  *   주기 스케쥴 → 이번 실행 시각(aggregateTo) - 1주기(통보간격분)
  *   배치 스케쥴 → 당일 00:00:00
- * 경고+에러 합계가 0인 서버는 결과에서 제외한다(통보 대상 아님).
+ * 에러가 0건인 서버는 결과에서 제외한다(통보 대상 아님, 경고만 있는 경우도 제외).
  */
 @Service
 public class NotifyAggregationService {
@@ -53,7 +53,7 @@ public class NotifyAggregationService {
                 }
             }
 
-            if (warningCount + errorCount == 0) {
+            if (errorCount == 0) {
                 continue;
             }
 
