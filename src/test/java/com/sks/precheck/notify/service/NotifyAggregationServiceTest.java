@@ -128,6 +128,34 @@ class NotifyAggregationServiceTest {
     }
 
     @Test
+    void watermarkFromPreviousDay_isClampedToStartOfToday() {
+        LocalDateTime aggregateTo = LocalDateTime.of(2026, 6, 18, 9, 30, 1);
+        when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01"));
+        when(notifyHistoryMapper.findLastWatermark("srv01")).thenReturn(LocalDateTime.of(2026, 6, 17, 20, 0, 0));
+        when(analyzeResultMapper.countByLevelInWindow(eq("srv01"), any(), any()))
+                .thenReturn(List.of(level("에러", 1)));
+
+        List<ServerAggregateResult> results = service.aggregate(periodicSchedule(30), aggregateTo);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getAggregateFrom()).isEqualTo(LocalDateTime.of(2026, 6, 18, 0, 0, 0));
+    }
+
+    @Test
+    void reversedWatermarkSameDay_skipsServerOnly() {
+        LocalDateTime aggregateTo = LocalDateTime.of(2026, 6, 18, 9, 30, 1);
+        when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01", "srv02"));
+        when(notifyHistoryMapper.findLastWatermark("srv01")).thenReturn(LocalDateTime.of(2026, 6, 18, 9, 35, 0));
+        when(notifyHistoryMapper.findLastWatermark("srv02")).thenReturn(LocalDateTime.of(2026, 6, 18, 9, 0, 1));
+        when(analyzeResultMapper.countByLevelInWindow(eq("srv02"), any(), any()))
+                .thenReturn(List.of(level("에러", 1)));
+
+        List<ServerAggregateResult> results = service.aggregate(periodicSchedule(30), aggregateTo);
+
+        assertThat(results).extracting(ServerAggregateResult::getServerId).containsExactly("srv02");
+    }
+
+    @Test
     void multipleServers_onlyAlertingOnesIncluded() {
         LocalDateTime aggregateTo = LocalDateTime.of(2026, 6, 18, 9, 30, 1);
         when(analyzeResultMapper.selectDistinctServerIds()).thenReturn(List.of("srv01", "srv02", "srv03"));

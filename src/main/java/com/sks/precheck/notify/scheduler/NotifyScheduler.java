@@ -2,6 +2,7 @@ package com.sks.precheck.notify.scheduler;
 
 import com.sks.precheck.notify.common.constants.NotifyConstants;
 import com.sks.precheck.notify.common.exception.NotifyException;
+import com.sks.precheck.notify.parser.NotifyHolidayParser;
 import com.sks.precheck.notify.parser.NotifyScheduleParser;
 import com.sks.precheck.notify.service.NotifyService;
 import com.sks.precheck.notify.vo.NotifyScheduleVo;
@@ -12,6 +13,7 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,15 +34,21 @@ public class NotifyScheduler {
     private static final Logger log = LogManager.getLogger(NotifyScheduler.class);
 
     private static final String DEFAULT_SCHEDULE_FILE_RELATIVE_PATH = "/cfg/PreCheck_NotifyLogs_Schedule.conf";
+    private static final String DEFAULT_HOLIDAY_FILE_RELATIVE_PATH = "/cfg/PreCheck_NotifyHoliday_List.conf";
     private static final int POLL_WINDOW_SECONDS = 60;
 
     private final NotifyService notifyService;
     private final NotifyScheduleParser notifyScheduleParser;
+    private final NotifyHolidayParser notifyHolidayParser;
 
     private final String scheduleFilePath;
+    private final String holidayFilePath;
     private final long reloadIntervalMillis;
     private volatile long lastReloadAtMillis;
     private volatile List<NotifyScheduleVo> cachedSchedules;
+    private volatile long lastHolidayReloadAtMillis;
+    private volatile Set<LocalDate> cachedHolidays;
+    private volatile LocalDate lastHolidaySkipLogDate;
 
     private final Map<String, String> lastBatchRunDateByKey = new HashMap<>();
     private final Map<String, Long> lastPeriodicRunIndexByKey = new HashMap<>();
@@ -48,24 +56,38 @@ public class NotifyScheduler {
     public NotifyScheduler(
             NotifyService notifyService,
             @Value("${precheck.notify.schedule-file-path:}") String scheduleFilePath,
+            @Value("${precheck.notify.holiday-file-path:}") String holidayFilePath,
             @Value("${precheck.notify.scheduler.reload-interval-ms:60000}") long reloadIntervalMillis
     ) {
         this.notifyService = notifyService;
         this.notifyScheduleParser = new NotifyScheduleParser();
+        this.notifyHolidayParser = new NotifyHolidayParser();
         this.scheduleFilePath = (scheduleFilePath == null || scheduleFilePath.isBlank())
                 ? System.getProperty("user.home") + DEFAULT_SCHEDULE_FILE_RELATIVE_PATH
                 : scheduleFilePath;
+        this.holidayFilePath = (holidayFilePath == null || holidayFilePath.isBlank())
+                ? System.getProperty("user.home") + DEFAULT_HOLIDAY_FILE_RELATIVE_PATH
+                : holidayFilePath;
         this.reloadIntervalMillis = reloadIntervalMillis;
     }
 
     @Scheduled(fixedDelay = 60_000)
     public void run() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        if (getHolidays().contains(today)) {
+            if (!today.equals(lastHolidaySkipLogDate)) {
+                log.info("[[[비영업일 - 통보 스킵]]] - date: {}", today);
+                lastHolidaySkipLogDate = today;
+            }
+            return;
+        }
+
         List<NotifyScheduleVo> schedules = getSchedules();
         if (schedules == null || schedules.isEmpty()) {
             return;
         }
 
-        LocalDateTime now = LocalDateTime.now();
         for (NotifyScheduleVo schedule : schedules) {
             try {
                 LocalDateTime slotTime = resolveSlotTimeIfShouldRun(schedule, now);
@@ -94,6 +116,25 @@ public class NotifyScheduler {
             cachedSchedules = List.of();
             lastReloadAtMillis = nowMillis;
             return cachedSchedules;
+        }
+    }
+
+    private Set<LocalDate> getHolidays() {
+        long nowMillis = System.currentTimeMillis();
+        if (cachedHolidays != null && nowMillis - lastHolidayReloadAtMillis < reloadIntervalMillis) {
+            return cachedHolidays;
+        }
+
+        try {
+            Set<LocalDate> holidays = notifyHolidayParser.parseHolidayFile(holidayFilePath);
+            cachedHolidays = holidays;
+            lastHolidayReloadAtMillis = nowMillis;
+            return holidays;
+        } catch (NotifyException e) {
+            log.error("비영업일 목록 파일 파싱 실패(휴장일 없음으로 처리) - file: {}", holidayFilePath, e);
+            cachedHolidays = Set.of();
+            lastHolidayReloadAtMillis = nowMillis;
+            return cachedHolidays;
         }
     }
 

@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,10 +21,15 @@ import org.springframework.stereotype.Service;
  * 워터마크가 없는 신규 서버는 AGGREGATE_FROM 기본값을 사용한다:
  *   주기 스케쥴 → 이번 실행 시각(aggregateTo) - 1주기(통보간격분)
  *   배치 스케쥴 → 당일 00:00:00
+ * AGGREGATE_FROM은 (워터마크든 기본값이든) 당일 00:00:00 이전으로 내려가지 않도록 clamp한다
+ * (자정 이전 미통보분은 집계에서 제외됨 — docs/1__프로그램_명세서_20260514.md 170행 참고).
+ * clamp 이후에도 AGGREGATE_FROM > AGGREGATE_TO(워터마크 역전)면 그 서버만 skip하고 경고 로그를 남긴다.
  * 에러가 0건인 서버는 결과에서 제외한다(통보 대상 아님, 경고만 있는 경우도 제외).
  */
 @Service
 public class NotifyAggregationService {
+
+    private static final Logger log = LogManager.getLogger(NotifyAggregationService.class);
 
     private static final DateTimeFormatter MESSAGE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -40,6 +47,17 @@ public class NotifyAggregationService {
         for (String serverId : analyzeResultMapper.selectDistinctServerIds()) {
             LocalDateTime watermark = notifyHistoryMapper.findLastWatermark(serverId);
             LocalDateTime aggregateFrom = watermark != null ? watermark : defaultAggregateFrom(schedule, aggregateTo);
+
+            LocalDateTime startOfToday = aggregateTo.toLocalDate().atStartOfDay();
+            if (aggregateFrom.isBefore(startOfToday)) {
+                aggregateFrom = startOfToday;
+            }
+
+            if (aggregateFrom.isAfter(aggregateTo)) {
+                log.warn("워터마크 역전 감지 - 통보 skip. serverId={}, aggregateFrom={}, aggregateTo={}",
+                        serverId, aggregateFrom, aggregateTo);
+                continue;
+            }
 
             long normalCount = 0;
             long warningCount = 0;

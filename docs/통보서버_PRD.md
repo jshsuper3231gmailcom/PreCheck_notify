@@ -92,6 +92,7 @@ PreCheck 시스템은 각 서브시스템 로그를 수집(`collect`)하고 분�
 - 서버(`SERVER_ID`)별로 독립 처리, 서버당 SMS 1건
 - 워터마크: `TB_NOTIFY_HISTORY`에서 해당 서버의 `NOTIFY_STATUS IN ('SUCCESS','PARTIAL')` 최신 행의 `AGGREGATE_TO`를 다음 구간의 시작점으로 사용
 - 워터마크가 없는 신규 서버의 `AGGREGATE_FROM` 기본값: 주기 스케쥴은 "이번 실행 시각 - 1주기(통보간격분)", 배치 스케쥴은 "당일 00:00:00" — 과거 누적분이 첫 실행에 한꺼번에 통보되는 것을 방지
+- `AGGREGATE_FROM`은 (워터마크든 기본값이든) 당일 00:00:00 이전으로 내려가지 않도록 clamp함. clamp 후에도 `AGGREGATE_FROM > AGGREGATE_TO`(워터마크 역전)면 그 서버만 skip하고 `log.warn` 남김, 런 전체는 FAIL 처리하지 않음(※2026-08-18 결정 추가: 에러 0건 폴링이 반복되면 워터마크가 며칠째 안 전진하는데, 그 상태로 에러가 재발생하면 며칠 전 시각~오늘 시각이 집계 구간이 되고 SMS 문구의 `HH:mm`만 표시하는 포맷 특성상 시간이 역전된 것처럼 보이는 문제가 있었음 — 자정 이전 미통보분은 이후 집계에서 영구 제외되지만 `TB_ANALYZE_RESULT` 자체는 남아 Dashboard에서 계속 조회 가능함)
 - `AGGREGATE_TO`는 스케쥴러가 실제로 감지한 wall-clock이 아니라 conf에 정의된 슬롯 시각(고정값)을 사용 (collect/analyze 폴링 패턴과 동일 원칙, 폴링 지연이 구간 경계에 누적되지 않도록 함)
 - 집계 대상: `ANALYZE_LEVEL IN ('정상','경고','에러')` (정보/미분석 제외), `ANALYZE_DATETIME`이 `(AGGREGATE_FROM, AGGREGATE_TO]` 구간
 - 에러가 0건이면 해당 서버는 통보 대상 제외, `TB_NOTIFY_HISTORY` 행도 생성하지 않음(경고만 있어도 제외 — ※2026-08-06 결정 변경: 기존엔 경고+에러 합계 기준이었으나 에러 발생 시에만 통보하도록 축소)
